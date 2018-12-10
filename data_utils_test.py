@@ -28,7 +28,7 @@ class DataTest(unittest.TestCase):
 
     # def test_load_train_test(self):
     #     train_dataset, test_dataset = (
-    #         data_utils.load_train_test('data/en-tiny.txt',
+    #         data_utils.generate_train_test('data/en-tiny.txt',
     #                                    'data/cn-tiny.txt',
     #                                    2,
     #                                    5)
@@ -43,21 +43,21 @@ class DataTest(unittest.TestCase):
     #         for _ in range(2):
     #             print(sess.run(test_iterator.get_next()))
 
-    # def test_batch_dataset(self):
-    #     train_dataset, test_dataset = (
-    #         data_utils.load_train_test('data/en-tiny.txt',
-    #                                    'data/cn-tiny.txt',
-    #                                    1,
-    #                                    5)
-    #     )
-    #     train_dataset, tgt_eos_id = data_utils.batch_dataset(train_dataset, 2)
-    #     train_iterator = train_dataset.make_initializable_iterator()
-    #     with tf.Session() as sess:
-    #         sess.run(train_iterator.initializer)
-    #         for _ in range(2):
-    #             print(sess.run(train_iterator.get_next()))
-    #     print('===============================')
-    #     print(tgt_eos_id)
+    def test_batch_dataset(self):
+        train_iterator, test_iterator = (
+            data_utils.generate_train_test('data/en-tiny.txt',
+                                           'data/cn-tiny.txt',
+                                           2,
+                                           1,
+                                           5)
+        )
+        with tf.Session() as sess:
+            sess.run(train_iterator.initializer)
+            for _ in range(2):
+                (source, src_lengths), (target, target_lengths) = sess.run(
+                    train_iterator.get_next()
+                )
+                print(source)
 
 if __name__ == '__main__':
     unittest.main()
