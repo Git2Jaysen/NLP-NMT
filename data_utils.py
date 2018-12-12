@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import os
+import json
 import numpy as np
 import tensorflow as tf
 from gensim import corpora
@@ -13,7 +14,7 @@ tgt_sos = "<SOS>"
 tgt_eos = "<EOS>"
 
 def split_sentences(file_path, is_target=False):
-    '''Split sentences in file_path.
+    """Split sentences in file_path.
 
     Args:
         file_path: string, the file's path to be splited.
@@ -25,7 +26,7 @@ def split_sentences(file_path, is_target=False):
 
     Raises:
         AssertError: if the file_path do not exist.
-    '''
+    """
     assert os.path.exists(file_path), "file_path does not exists."
     if is_target:
         with open(file_path, encoding="utf-8") as file:
@@ -37,7 +38,7 @@ def split_sentences(file_path, is_target=False):
     return sentences
 
 def split_train_test(src_file_path, tgt_file_path, test_size):
-    '''Split train and test data according to test_rate.
+    """Split train and test data according to test_rate.
 
     Args:
         src_file_path: string, source file's path.
@@ -46,7 +47,7 @@ def split_train_test(src_file_path, tgt_file_path, test_size):
 
     Returns:
         source sentences, target sentences and their train and test sentences.
-    '''
+    """
     src_sentences, tgt_sentences = (
         split_sentences(src_file_path),
         split_sentences(tgt_file_path, True)
@@ -56,29 +57,8 @@ def split_train_test(src_file_path, tgt_file_path, test_size):
         train_test_split(src_sentences, tgt_sentences, test_size=test_size)
     )
 
-def generate_dictionary(sentences, is_target=False):
-    '''Generate dictionary for the giving sentences.
-
-    Args:
-        sentences: a 2-D list, denoting a series of splited sentences.
-        is_target: bool, denoting the dictionary generated for source or target.
-
-    Returns:
-        A gensim.corpora.Dictionay instance.
-
-    Raises:
-        AssertError: if sentences is None.
-    '''
-    assert sentences is not None, "sentences to build ditcionary is None."
-    dictionary = corpora.Dictionary(sentences)
-    if is_target:
-        dictionary.save("data/target.dict")
-    else:
-        dictionary.save("data/source.dict")
-    return dictionary
-
 def map_tokens2ids(sentences, dictionary):
-    '''Map tokens in sentences to ids according to the dictionary.
+    """Map tokens in sentences to ids according to the dictionary.
 
     Args:
         sentences: a 2-D list, denoting a series of splited sentences.
@@ -86,24 +66,27 @@ def map_tokens2ids(sentences, dictionary):
 
     Returns:
         A 2-D list denotes the token ids corresponding to sentences.
-    '''
+    """
     return [dictionary.doc2idx(sentence, len(dictionary))
             for sentence in sentences]
 
 def data_generator(sequences):
-    '''Build data generator from sequences.
+    """Build data generator from sequences. Using for tf.data.Dataset.
+    from_generator. Can not use tf.data.Dataset.from_tensors or
+    tf.data.Dataset.from_tensor_slices, because the setence length is vaiable.
+    If want to use the two above, try 0-padding first.
 
     Args:
         sentences: 2-D list.
 
     Returns:
         yield a sentence one by one.
-    '''
+    """
     for sequence in sequences:
         yield sequence
 
 def generate_dataset(sequences):
-    '''Build a tf.data.Dataset instance from a data generator,
+    """Build a tf.data.Dataset instance from a data generator,
        and add sentence length for each sentences.
 
        Args:
@@ -111,12 +94,103 @@ def generate_dataset(sequences):
 
        Returns:
            A tf.data.Dataset instance denoting the loaded data.
-    '''
+    """
     dataset = tf.data.Dataset.from_generator(
         lambda: data_generator(sequences),
         tf.int32
     )
     return dataset.map(lambda s: (s, tf.size(s)))
+
+def transform_sentences2dataset(sentences, dictionary):
+    """Transform sentences to dataset according to dictionary.
+
+    Args:
+        sentences: 2-D list.
+        dictionary: corpora.Dictionay, the corresponding dictionary.
+
+    Returns:
+        A tf.data.Dataset instance.
+    """
+    sequences = map_tokens2ids(sentences, dictionary)
+    dataset = generate_dataset(sequences)
+    return dataset
+
+def process_dataset(dataset, batch_size, tgt_eos_id, is_training=True):
+    """Process dataset with shuffling, zero-padding, prefetching and repeating.
+
+    # pipeline
+    1. shuffle the dataset.
+    2. batch dataset with batch size and pad zero.
+    3. repeat the dataset forever(useful for training).
+    4. prefetch data(promote perfermance).
+
+    Args:
+        dataset: tf.data.Dataset, the dataset to be batched.
+        batch_size: int, the batch size using for batching data.
+        tgt_eos_id: int, index of target eos in dictionary
+        is_training: bool, denoting training or not. Using for batch dataset,
+                     for testing, dataset consits of one batch, whose size is
+                     the number of test samples.
+
+    Returns:
+        the processed dataset.
+    """
+    dataset = (
+        dataset.shuffle(10)
+               .padded_batch(
+                    batch_size,
+                    padded_shapes=(([None], []),
+                                   ([None], [])),
+                    padding_values=((0, 0),          # unused second
+                                    (tgt_eos_id, 0)) # unused second
+               )
+               .prefetch(batch_size)
+    )
+    return dataset.repeat() if is_training else dataset
+
+def preprocessing(params):
+    """Preprocess the given data in params.
+
+    Pipeline:
+        1. split sentencs from file and generate train and test sentences.
+        2. generate source and target dictionaries.
+        3. save results to data dir.
+
+    Args:
+        params: a Dict, containing required parameters.
+    """
+    assert os.path.exists(params["src_path"]), "source file not found."
+    assert os.path.exists(params["tgt_path"]), "target file not found."
+    # pipeline 1
+    (
+        src_sentences, tgt_sentences,
+        (
+            src_train_sentences, src_test_sentences,
+            tgt_train_sentences, tgt_test_sentences
+        )
+    ) = split_train_test(
+        params["src_path"], params["tgt_path"], params["test_size"]
+    )
+    # pipeline 2
+    src_dictionary = corpora.Dictionary(src_sentences)
+    tgt_dictionary = corpora.Dictionary(tgt_sentences)
+    # pipeline 3
+    json.dump(src_train_sentences,
+              open(params["src_train_path"], 'w'),
+              ensure_ascii=False)
+    json.dump(src_test_sentences,
+              open(params["src_test_path"], 'w'),
+              ensure_ascii=False)
+    json.dump(tgt_train_sentences,
+              open(params["tgt_train_path"], 'w'),
+              ensure_ascii=False)
+    json.dump(tgt_test_sentences,
+              open(params["tgt_test_path"], 'w'),
+              ensure_ascii=False)
+    src_dictionary.save(params["src_dict_path"])
+    tgt_dictionary.save(params["tgt_dict_path"])
+
+# ============================== unused below ==============================
 
 def split_dataset(dataset, n_parts, data_range):
     '''Split dataset.
@@ -137,51 +211,6 @@ def split_dataset(dataset, n_parts, data_range):
     for i in data_range[1:]:
         new_dataset = new_dataset.concatenate(dataset.shard(n_parts, i))
     return new_dataset
-
-def process_dataset(dataset, batch_size, tgt_eos_id):
-    '''Process dataset, note that it's for train dataset only.
-
-    # pipeline
-    1. shuffle the dataset.
-    2. batch dataset with batch size and pad zero.
-    3. repeat the dataset forever(useful for training).
-    4. prefetch data(promote perfermance).
-
-    Args:
-        dataset: tf.data.Dataset, the dataset to be batched.
-        batch_size: int, the batch size using for batching data.
-        tgt_eos_id: int, index of target eos in dictionary
-
-    Returns:
-        the processed dataset.
-    '''
-    dataset = (
-        dataset.shuffle(10)
-               .padded_batch(
-                    batch_size,
-                    padded_shapes=(([None], []),
-                                   ([None], [])),
-                    padding_values=((0, 0),          # unused second
-                                    (tgt_eos_id, 0)) # unused second
-               )
-               .repeat()
-               .prefetch(batch_size)
-    )
-    return dataset
-
-def transform_sentences2dataset(sentences, dictionary):
-    '''Transform sentences to dataset according to dictionary.
-
-    Args:
-        sentences: 2-D list.
-        dictionary: corpora.Dictionay, the corresponding dictionary.
-
-    Returns:
-        A tf.data.Dataset instance.
-    '''
-    sequences = map_tokens2ids(sentences, dictionary)
-    dataset = generate_dataset(sequences)
-    return dataset
 
 def generate_train_test(src_file_path,
                         tgt_file_path,

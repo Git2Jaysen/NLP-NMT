@@ -1,0 +1,12 @@
+{
+    "src_path" : "data/en.txt",
+    "tgt_path" : "data/cn.txt",
+    "src_train_path" : "data/src_train.json",
+    "src_test_path" : "data/src_test.json",
+    "tgt_train_path" : "data/tgt_train.json",
+    "tgt_test_path" : "data/tgt_test.json",
+    "src_dict_path" : "data/source.dict",
+    "tgt_dict_path" : "data/target.dict",
+    "test_size" : 0.2,
+    "batch_size" : 4
+}

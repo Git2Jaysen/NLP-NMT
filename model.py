@@ -1,104 +1,107 @@
 # coding: utf-8
 
+import os
+import json
+import data_utils
 import tensorflow as tf
+from gensim import corpora
 
-class RNNModel:
-    '''Neural Machine Translation Model.
+def input_fn(is_training, params):
+    """Build input_fn, it is required by tf.estimator.Estimator when calling
+    Estimator.train(input_fn) or test(input_fn).
 
-    Supported Models:
-        Bi-LSTM + attention
-    '''
-    def __init__(self,
-                 src_dictionary,
-                 tgt_dictionary,
-                 max_training_step,
-                 batch_size,
-                 word_dim,
-                 num_units
-                 ):
-        '''Create the model.
+    Args:
+        params: a Dict, indicating the parameters when building input_fn.
 
-        Args:
-            src_dictionary: gensim.corpora.Dictionay, source dictionary.
-            tgt_dictionary: gensim.corpora.Dictionay, target dictionary.
-            max_training_step: int, max training step.
-            batch_size: int, batch size using for train dataset.
-            word_dim: int, word dim in embedding lookup table.
-        '''
-        self._set_session_graph()
-        self.src_dictionary = src_dictionary
-        self.tgt_dictionary = tgt_dictionary
-        self.max_training_step = max_training_step
-        self.batch_size = batch_size
-        self.word_dim = word_dim
-        self.num_units = num_units
+    Returns:
+        A tf.data.Dataset instance containing (features, labels), where features
+        consists of (src_sequences, src_lengths) and labels consists of
+        (tgt_sequences, tgt_lengths).
+    """
+    # load train data
+    if is_training:
+        assert os.path.exists(params["src_train_path"])
+        assert os.path.exists(params["tgt_train_path"])
+        src_sentences = json.load(open(params["src_train_path"]))
+        tgt_sentences = json.load(open(params["tgt_train_path"]))
+    else:
+        assert os.path.exists(params["src_test_path"])
+        assert os.path.exists(params["tgt_test_path"])
+        src_sentences = json.load(open(params["src_test_path"]))
+        tgt_sentences = json.load(open(params["tgt_test_path"]))
+    assert len(src_sentences) == len(tgt_sentences)
+    # load source and target dictionary
+    assert os.path.exists(params["src_dict_path"])
+    assert os.path.exists(params["tgt_dict_path"])
+    src_dictionary = corpora.Dictionary.load(params["src_dict_path"])
+    tgt_dictionary = corpora.Dictionary.load(params["tgt_dict_path"])
+    # generate dataset
+    src_dataset = data_utils.transform_sentences2dataset(src_sentences,
+                                                         src_dictionary)
+    tgt_dataset = data_utils.transform_sentences2dataset(tgt_sentences,
+                                                         tgt_dictionary)
+    # target eos id
+    tgt_eos_id = tgt_dictionary.token2id[data_utils.tgt_eos]
+    # shuffle, batch, pad zero and prefetch
+    dataset = data_utils.process_dataset(
+        tf.data.Dataset.zip((src_dataset, tgt_dataset)),
+        params["batch_size"] if is_training else len(src_sentences),
+        tgt_eos_id,
+        is_training
+    )
+    # return dataset
+    return dataset
 
-    def _set_session_graph(self):
-        '''Set 3 separate graphs and sessions for train, eval and test.
-        By doing this, there are many benefits. Because train, eval and test are
-        separated, weights sharing are implemented by tf.train.Saver.
-        '''
-        self.train_graph = tf.Graph()
-        self.eval_graph = tf.Graph()
-        self.test_graph = tf.Graph()
-        self.train_sess = tf.Session(graph=self.train_graph)
-        self.eval_sess = tf.Session(graph=self.eval_graph)
-        self.test_sess = tf.Session(graph=self.test_graph)
+def BiRNN_model_fn(features, labels, mode, params):
+    # unzip source and target data
+    src_sequences, src_lengths = features
+    tgt_sequences, tgt_lengths = labels
+    # define model graph
 
-    def _build_encoder(self,
-                       encoder_inputs,
-                       src_sequence_length,
-                       decoder_inputs,
-                       tgt_sequence_length,
-                       reuse=False):
-        '''Build BiRNN model.
-        '''
-        with tf.variable_scope("encoder", reuse=reuse):
-            embedding_encoder = tf.get_variable(
-                "embedding_encoder",
-                [len(self.src_dictionary), self.word_dim]
-            )
-            encoder_emb_inp = tf.nn.embedding_lookup(
-                embedding_encoder,
-                encoder_inputs
-            )
-            encoder_cell_fw = tf.nn.rnn_cell.LSTMCell(self.num_units)
-            encoder_cell_bw = tf.nn.rnn_cell.LSTMCell(self.num_units)
-            (output_fw, output_bw), (state_fw, state_bw) = (
-                tf.nn.bidirectional_dynamic_rnn(
-                    encoder_cell_fw,
-                    encoder_cell_bw,
-                    encoder_emb_inp,
-                    sequence_length=src_sequence_length,
-                    dtype=tf.int32
-                )
-            )
-            encoder_outputs = tf.concat([output_fw, output_bw], axis=-1)
-            encoder_state = tf.concat([state_fw, state_bw], axis=-1)
+    # define model behavior
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
+        loss = ...
+    else:
+        loss = None
+    if mode == tf.estimator.ModeKeys.TRAIN:
+        train_op = ...
+    else:
+        train_op = None
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        predictions = ...
+    else:
+        predictions = None
+    # return EstimatorSpec instance
+    return tf.estimator.EstimatorSpec(
+        mode=mode,
+        predictions=predictions,
+        loss=loss,
+        train_op=train_op)
 
-        with tf.variable_scope("decoder", reuse=reuse):
-            embedding_decoder = tf.get_variable(
-                "embedding_decoder",
-                [len(self.tgt_dictionary), self.word_dim]
-            )
-            decoder_emb_inp = tf.nn.embedding_lookup(
-                embedding_decoder,
-                decoder_inputs
-            )
-            decoder_cell = tf.nn.rnn_cell.LSTMCell(self.num_units)
-            train_helper = tf.contrib.seq2seq.TrainingHelper(
-                decoder_emb_inp,
-                tgt_sequence_length
-            )
-            projection_layer = tf.layers.Dense(
-                len(self.tgt_dictionary),
-                use_bias=False
-            )
-            decoder = tf.contrib.seq2seq.BasicDecoder(
-                decoder_cell,
-                train_helper,
-                encoder_state,
-                output_layer=projection_layer
-            )
-            decoder_outputs, _ = tf.contrib.seq2seq.dynamic_decode(decoder)
-            logits = decoder_outputs.rnn_output
+# def Transformer_model_fn(features, labels, mode, params):
+#     # unzip source and target data
+#     src_sequences, src_lengths = features
+#     tgt_sequences, tgt_lengths = labels
+#     # define model graph
+#
+#     # define model behavior
+#     if (mode == tf.estimator.ModeKeys.TRAIN or
+#         mode == tf.estimator.ModeKeys.EVAL):
+#         loss = ...
+#     else:
+#         loss = None
+#     if mode == tf.estimator.ModeKeys.TRAIN:
+#         train_op = ...
+#     else:
+#         train_op = None
+#     if mode == tf.estimator.ModeKeys.PREDICT:
+#         predictions = ...
+#     else:
+#         predictions = None
+#     # return EstimatorSpec instance
+#     return tf.estimator.EstimatorSpec(
+#         mode=mode,
+#         predictions=predictions,
+#         loss=loss,
+#         train_op=train_op)
