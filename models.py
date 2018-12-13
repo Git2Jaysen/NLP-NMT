@@ -169,7 +169,8 @@ def RNN_model_fn(features, labels, mode, params):
             labels=decoder_outputs, logits=logits
         )
         loss = tf.reduce_sum(
-            crossent * target_weights / params["batch_size"]
+            crossent * target_weights / params["batch_size"],
+            name = "loss"
         )
     else:
         loss = None
@@ -193,10 +194,10 @@ def RNN_model_fn(features, labels, mode, params):
         predictions = None
     # return EstimatorSpec instance
     return tf.estimator.EstimatorSpec(
-        mode=mode,
-        predictions=predictions,
-        loss=loss,
-        train_op=train_op
+        mode = mode,
+        predictions = predictions,
+        loss = loss,
+        train_op = train_op
     )
 
 # def Transformer_model_fn(features, labels, mode, params):
