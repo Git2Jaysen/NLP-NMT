@@ -1,14 +1,14 @@
 # coding: utf-8
 
 import json
-import model
+import models
 import unittest
 import tensorflow as tf
 
 class ModelTest(unittest.TestCase):
     # def test_input_fn(self):
     #     params = json.load(open("data/config.json"))
-    #     dataset = model.input_fn(False, params)
+    #     dataset = models.input_fn(False, params)
     #     iterator = dataset.make_initializable_iterator()
     #     with tf.Session() as sess:
     #         sess.run(iterator.initializer)
@@ -23,11 +23,10 @@ class ModelTest(unittest.TestCase):
     def test_model_fn(self):
         params = json.load(open("data/config.json"))
         estimator = tf.estimator.Estimator(
-            model_fn = model.RNN_model_fn,
+            model_fn = models.RNN_model_fn,
             model_dir = "model",
-            params = params
-        )
-        estimator.train(lambda: model.input_fn(True, params),
+            params = params)
+        estimator.train(lambda: models.input_fn(True, params),
                         steps=10)
 
 if __name__ == "__main__":
