@@ -8,17 +8,17 @@ import tensorflow as tf
 class ModelTest(unittest.TestCase):
     # def test_input_fn(self):
     #     params = json.load(open("data/config.json"))
-    #     dataset = models.input_fn(False, params)
+    #     dataset = models.input_fn(True, params)
     #     iterator = dataset.make_initializable_iterator()
     #     with tf.Session() as sess:
     #         sess.run(iterator.initializer)
     #         (features, labels) = sess.run(iterator.get_next())
     #         src_sequences, src_lengths = features
     #         tgt_sequences, tgt_lengths = labels
-    #         print(src_sequences.shape)
-    #         print(src_lengths.shape)
-    #         print(tgt_sequences.shape)
-    #         print(tgt_lengths.shape)
+    #         print(src_sequences)
+    #         print(src_lengths)
+    #         print(tgt_sequences)
+    #         print(tgt_lengths)
 
     def test_model_fn(self):
         params = json.load(open("data/config.json"))
@@ -27,7 +27,7 @@ class ModelTest(unittest.TestCase):
             model_dir = "model",
             params = params)
         estimator.train(lambda: models.input_fn(True, params),
-                        steps=10)
+                        steps=1)
 
 if __name__ == "__main__":
     unittest.main()

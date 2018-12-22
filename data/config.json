@@ -8,10 +8,11 @@
     "src_dict_path" : "data/source.dict",
     "tgt_dict_path" : "data/target.dict",
     "test_size" : 0.2,
-    "batch_size" : 64,
+    "batch_size" : 4,
     "src_word_size" : 11869,
     "tgt_word_size" : 13288,
     "embedding_size" : 300,
     "rnn_units" : 128,
+    "n_encoder_layers" : 3,
     "max_global_norm" : 1
 }
