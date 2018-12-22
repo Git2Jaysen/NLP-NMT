@@ -88,28 +88,18 @@ def RNN_model_fn(features, labels, mode, params):
         embedding_encoder,
         src_sequences
     )
-    encoder_cell = tf.nn.rnn_cell.LSTMCell(params["rnn_units"])
-    encoder_outputs, encoder_state = tf.nn.dynamic_rnn(
-        cell = encoder_cell,
-        inputs = encoder_emb_inp,
-        sequence_length = src_lengths,
-        dtype = tf.float32
-    )
-    # encoder_cell_fw = tf.nn.rnn_cell.LSTMCell(params["rnn_units"])
-    # encoder_cell_bw = tf.nn.rnn_cell.LSTMCell(params["rnn_units"])
-    # encoder_outputs, encoder_state = (
-    #     tf.nn.bidirectional_dynamic_rnn(
-    #         encoder_cell_fw,
-    #         encoder_cell_bw,
-    #         encoder_emb_inp,
-    #         sequence_length=src_lengths,
-    #         dtype=tf.float32))
+    encoder_cell_fw = tf.nn.rnn_cell.LSTMCell(params["rnn_units"])
+    encoder_cell_bw = tf.nn.rnn_cell.LSTMCell(params["rnn_units"])
+    encoder_outputs, encoder_state = (
+        tf.nn.bidirectional_dynamic_rnn(
+            encoder_cell_fw,
+            encoder_cell_bw,
+            encoder_emb_inp,
+            sequence_length=src_lengths,
+            dtype=tf.float32))
     # concat forward and backward outputs, using for attention
     # shape: [batch_size, max_sequence_length, 2 * rnn_units]
-    # encoder_outputs = tf.concat(encoder_outputs, axis=-1)
-    # concat the final state of forward and backward, using for decoder
-    # tuple (c, h) with shape: [batch_size, 2 * rnn_units]
-    # encoder_state = tf.concat(encoder_state, axis=-1)
+    encoder_outputs = tf.concat(encoder_outputs, axis=-1)
     # decoder part
     embedding_decoder = tf.Variable(
         tf.truncated_normal([params["tgt_word_size"],
@@ -128,7 +118,9 @@ def RNN_model_fn(features, labels, mode, params):
         memory_sequence_length=src_lengths
     )
     # using for initializing decoder
-    decoder_cell = tf.nn.rnn_cell.LSTMCell(params["rnn_units"])
+    decoder_cell = tf.nn.rnn_cell.MultiRNNCell(
+        [tf.nn.rnn_cell.LSTMCell(params["rnn_units"]) for _ in range(2)]
+    )
     # wrap decoder cell with attention
     attended_decoder_cell = tf.contrib.seq2seq.AttentionWrapper(
         decoder_cell,
