@@ -22,13 +22,17 @@ def input_fn(is_training, params):
     if is_training:
         assert os.path.exists(params["src_train_path"])
         assert os.path.exists(params["tgt_train_path"])
-        src_sentences = json.load(open(params["src_train_path"]))
-        tgt_sentences = json.load(open(params["tgt_train_path"]))
+        with open(params["src_train_path"]) as f:
+            src_sentences = json.load(f)
+        with open(params["tgt_train_path"]) as f:
+            tgt_sentences = json.load(f)
     else:
         assert os.path.exists(params["src_test_path"])
         assert os.path.exists(params["tgt_test_path"])
-        src_sentences = json.load(open(params["src_test_path"]))
-        tgt_sentences = json.load(open(params["tgt_test_path"]))
+        with open(params["src_test_path"]) as f:
+            src_sentences = json.load(f)
+        with open(params["tgt_test_path"]) as f:
+            tgt_sentences = json.load(f)
     assert len(src_sentences) == len(tgt_sentences)
     # load source and target dictionary
     assert os.path.exists(params["src_dict_path"])
@@ -148,7 +152,8 @@ def RNN_model_fn(features, labels, mode, params):
     else:
         helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
             decoder_emb_inp,
-            tgt_lengths
+            tgt_lengths,
+            params["end_token"]
         )
     # build basic decoder
     decoder = tf.contrib.seq2seq.BasicDecoder(
