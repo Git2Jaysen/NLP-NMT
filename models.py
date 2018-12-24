@@ -33,6 +33,8 @@ def input_fn(is_training, params):
             src_sentences = json.load(f)
         with open(params["tgt_test_path"]) as f:
             tgt_sentences = json.load(f)
+        # reset batch_size
+        params["batch_size"] = len(src_sentences)
     assert len(src_sentences) == len(tgt_sentences)
     # load source and target dictionary
     assert os.path.exists(params["src_dict_path"])
@@ -44,14 +46,12 @@ def input_fn(is_training, params):
                                                          src_dictionary)
     tgt_dataset = data_utils.transform_sentences2dataset(tgt_sentences,
                                                          tgt_dictionary)
-    # target eos id
-    tgt_eos_id = tgt_dictionary.token2id[data_utils.tgt_eos]
-    # shuffle, batch, pad zero and prefetch,
-    # and test dataset will NOT be bachted
+    # shuffle, batch and pad zero
+    # test dataset will NOT be bachted(batch_size = n_test_samples)
     dataset = data_utils.process_dataset(
         tf.data.Dataset.zip((src_dataset, tgt_dataset)),
-        params["batch_size"] if is_training else len(src_sentences),
-        tgt_eos_id,
+        params["batch_size"],
+        params["tgt_eos_id"],
         is_training
     )
     # return dataset
@@ -79,7 +79,8 @@ def RNN_model_fn(features, labels, mode, params):
     src_sequences, src_lengths = features
     # tgt_sequences shape: [batch_size, max_sequence_length]
     # tgt_lengths shape: [batch_size]
-    tgt_sequences, tgt_lengths = labels
+    if mode == tf.estimator.ModeKeys.TRAIN:
+        tgt_sequences, tgt_lengths = labels
     # define model graph
     # encoder part
     embedding_encoder = tf.Variable(
@@ -99,8 +100,10 @@ def RNN_model_fn(features, labels, mode, params):
             encoder_cell_fw,
             encoder_cell_bw,
             encoder_emb_inp,
-            sequence_length=src_lengths,
-            dtype=tf.float32))
+            sequence_length = src_lengths,
+            dtype = tf.float32
+        )
+    )
     # concat forward and backward outputs, using for attention
     # shape: [batch_size, max_sequence_length, 2 * rnn_units]
     encoder_outputs = tf.concat(encoder_outputs, axis=-1)
@@ -111,15 +114,16 @@ def RNN_model_fn(features, labels, mode, params):
         name = "embedding_decoder"
     )
     # shape: [batch_size, max_sequence_length, embedding_size]
-    decoder_emb_inp = tf.nn.embedding_lookup(
-        embedding_decoder,
-        tgt_sequences
-    )
+    if mode == tf.estimator.ModeKeys.TRAIN:
+        decoder_emb_inp = tf.nn.embedding_lookup(
+            embedding_decoder,
+            tgt_sequences
+        )
     # attention
     attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(
         params["rnn_units"],
         encoder_outputs,
-        memory_sequence_length=src_lengths
+        memory_sequence_length = src_lengths
     )
     # using for initializing decoder
     decoder_cell = tf.nn.rnn_cell.MultiRNNCell(
@@ -136,7 +140,7 @@ def RNN_model_fn(features, labels, mode, params):
         params["batch_size"], tf.float32
     )
     decoder_initial_state = decoder_initial_state.clone(
-        cell_state=encoder_state
+        cell_state = encoder_state
     )
     # map the output dim to tgt_word_size(using for softmax)
     projection_layer = tf.layers.Dense(
@@ -151,16 +155,16 @@ def RNN_model_fn(features, labels, mode, params):
         )
     else:
         helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
-            decoder_emb_inp,
-            tgt_lengths,
-            params["end_token"]
+            embedding_decoder,
+            tf.fill([params["batch_size"]], params["tgt_sos_id"]),
+            params["tgt_eos_id"]
         )
     # build basic decoder
     decoder = tf.contrib.seq2seq.BasicDecoder(
         attended_decoder_cell,
         helper,
         decoder_initial_state,
-        output_layer=projection_layer
+        output_layer = projection_layer
     )
     # different dynamic_decode paramters when training and testing
     if mode == tf.estimator.ModeKeys.TRAIN:
@@ -170,7 +174,7 @@ def RNN_model_fn(features, labels, mode, params):
         maximum_iterations = tf.round(tf.reduce_max(src_lengths) * 2)
         decoder_outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(
             decoder,
-            maximum_iterations=maximum_iterations
+            maximum_iterations = maximum_iterations
         )
     # define loss
     if (mode == tf.estimator.ModeKeys.TRAIN or

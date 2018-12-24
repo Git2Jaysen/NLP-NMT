@@ -115,7 +115,7 @@ def transform_sentences2dataset(sentences, dictionary):
     dataset = generate_dataset(sequences)
     return dataset
 
-def process_dataset(dataset, batch_size, tgt_eos_id, is_training=True):
+def process_dataset(dataset, batch_size, tgt_eos_id, is_training):
     """Process dataset with shuffling, zero-padding, prefetching and repeating.
 
     # pipeline
@@ -144,21 +144,24 @@ def process_dataset(dataset, batch_size, tgt_eos_id, is_training=True):
                     padding_values=((0, 0),          # unused second
                                     (tgt_eos_id, 0)) # unused second
                )
-               .prefetch(batch_size)
     )
     return dataset.repeat() if is_training else dataset
 
-def preprocessing(params):
+def preprocessing(config_path = "data/config.json"):
     """Preprocess the given data in params.
 
     Pipeline:
         1. split sentencs from file and generate train and test sentences.
         2. generate source and target dictionaries.
         3. save results to data dir.
+        4. set config info and refresh config.
 
     Args:
-        params: a Dict, containing required parameters.
+        config_path: a string, config file path.
     """
+    assert os.path.exists(config_path), "config file not found."
+    with open(config_path) as f:
+        params = json.load(f)
     assert os.path.exists(params["src_path"]), "source file not found."
     assert os.path.exists(params["tgt_path"]), "target file not found."
     # pipeline 1
@@ -189,6 +192,13 @@ def preprocessing(params):
               ensure_ascii=False)
     src_dictionary.save(params["src_dict_path"])
     tgt_dictionary.save(params["tgt_dict_path"])
+    # pipeline 4
+    params["src_word_size"] = len(src_dictionary)
+    params["tgt_word_size"] = len(tgt_dictionary)
+    params["tgt_sos_id"] = tgt_dictionary.token2id[tgt_sos]
+    params["tgt_eos_id"] = tgt_dictionary.token2id[tgt_eos]
+    with open(config_path, "w") as f:
+        json.dump(params, f, ensure_ascii=False, indent=True)
 
 # ============================== unused below ==============================
 
