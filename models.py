@@ -33,8 +33,6 @@ def input_fn(is_training, params):
             src_sentences = json.load(f)
         with open(params["tgt_test_path"]) as f:
             tgt_sentences = json.load(f)
-        # reset batch_size
-        params["batch_size"] = len(src_sentences)
     assert len(src_sentences) == len(tgt_sentences)
     # load source and target dictionary
     assert os.path.exists(params["src_dict_path"])

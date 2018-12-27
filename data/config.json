@@ -15,5 +15,6 @@
  "src_word_size": 11869,
  "tgt_word_size": 13288,
  "tgt_sos_id": 2,
- "tgt_eos_id": 1
+ "tgt_eos_id": 1,
+ "n_test_samples": 1367
 }

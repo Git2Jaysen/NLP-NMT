@@ -193,6 +193,7 @@ def preprocessing(config_path = "data/config.json"):
     src_dictionary.save(params["src_dict_path"])
     tgt_dictionary.save(params["tgt_dict_path"])
     # pipeline 4
+    params["n_test_samples"] = len(src_test_sentences)
     params["src_word_size"] = len(src_dictionary)
     params["tgt_word_size"] = len(tgt_dictionary)
     params["tgt_sos_id"] = tgt_dictionary.token2id[tgt_sos]

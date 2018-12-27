@@ -41,7 +41,7 @@ class ModelTest(unittest.TestCase):
             lambda: models.input_fn(True, params),
             steps=1
         )
-        params["batch_size"] = 1367
+        params["batch_size"] = params["n_test_samples"]
         test_estimator = tf.estimator.Estimator(
             model_fn = models.RNN_model_fn,
             model_dir = "model",
