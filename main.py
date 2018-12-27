@@ -6,6 +6,8 @@ import models
 import data_utils
 
 def main():
+    # preprocessing
+    data_utils.preprocessing()
     # read config
     with open("data/config.json") as f:
         params = data_utils.preprocessing(json.load(f))

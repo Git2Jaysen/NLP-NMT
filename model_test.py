@@ -33,19 +33,27 @@ class ModelTest(unittest.TestCase):
 
     def test_model_fn(self):
         params = json.load(open("data/config.json"))
-        estimator = tf.estimator.Estimator(
+        train_estimator = tf.estimator.Estimator(
             model_fn = models.RNN_model_fn,
             model_dir = "model",
             params = params)
-        estimator.train(
+        train_estimator.train(
             lambda: models.input_fn(True, params),
             steps=1
         )
-        predictions = estimator.predict(
+        params["batch_size"] = 1367
+        test_estimator = tf.estimator.Estimator(
+            model_fn = models.RNN_model_fn,
+            model_dir = "model",
+            params = params,
+            warm_start_from = "model")
+        predictions = train_estimator.predict(
             lambda: models.input_fn(False, params)
         )
+        cnt = 0
         for pred in predictions:
-            print(pred)
+            cnt += 1
+            print(cnt)
 
 if __name__ == "__main__":
     unittest.main()
