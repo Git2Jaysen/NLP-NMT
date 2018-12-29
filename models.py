@@ -113,7 +113,8 @@ def RNN_model_fn(features, labels, mode, params):
         name = "embedding_decoder"
     )
     # shape: [batch_size, max_sequence_length, embedding_size]
-    if mode == tf.estimator.ModeKeys.TRAIN:
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
         decoder_emb_inp = tf.nn.embedding_lookup(
             embedding_decoder,
             tgt_sequences
@@ -147,7 +148,8 @@ def RNN_model_fn(features, labels, mode, params):
         use_bias = False
     )
     # different helper when training and testing
-    if mode == tf.estimator.ModeKeys.TRAIN:
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
         helper = tf.contrib.seq2seq.TrainingHelper(
             decoder_emb_inp,
             tgt_lengths
@@ -166,7 +168,8 @@ def RNN_model_fn(features, labels, mode, params):
         output_layer = projection_layer
     )
     # different dynamic_decode paramters when training and testing
-    if mode == tf.estimator.ModeKeys.TRAIN:
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
         decoder_outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder)
     else:
         # define maximum decoding length

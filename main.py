@@ -80,7 +80,8 @@ def main():
     logging.info("evaluating BELU score of predictions.")
     with open(params["tgt_test_path"]) as f:
         references = json.load(f)
-    print("BELU Score: {}".format(evals.BELU(references, predictions)))
+    with open(params["eval_belu_path"], "w") as f:
+        f.write("BELU Score: {}".format(evals.BELU(references, predictions)))
 
 if __name__ == "__main__":
     main()

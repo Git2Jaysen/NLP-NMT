@@ -7,6 +7,7 @@
  "tgt_test_path": "data/tgt_test.json",
  "src_dict_path": "data/source.dict",
  "tgt_dict_path": "data/target.dict",
+ "eval_belu_path": "data/belu_score.txt",
  "test_size": 0.2,
  "batch_size": 64,
  "embedding_size": 300,
