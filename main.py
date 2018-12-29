@@ -28,12 +28,19 @@ def main():
     logging.info("loading config.")
     with open("data/config.json") as f:
         params = json.load(f)
+    # define run config
+    run_config = tf.estimator.RunConfig(
+        model_dir = "model",
+        save_summary_steps = 10,
+        save_checkpoints_steps = 1
+    )
     # build RNN-Search model
     logging.info("building train estimator.")
     train_estimator = tf.estimator.Estimator(
         model_fn = models.RNN_model_fn,
         model_dir = "model",
-        params = params
+        params = params,
+        config = run_config
     )
     # define TrainSpec
     logging.info("defining train spec.")
@@ -73,7 +80,7 @@ def main():
     logging.info("evaluating BELU score of predictions.")
     with open(params["tgt_test_path"]) as f:
         references = json.load(f)
-    print(evals.BELU(references, predictions))
+    print("BELU Score: {}".format(evals.BELU(references, predictions)))
 
 if __name__ == "__main__":
     main()

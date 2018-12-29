@@ -45,7 +45,7 @@ class EarlyStoppingHook(tf.train.SessionRunHook):
         """Called before each call to run().
         """
         graph = tf.get_default_graph()
-        self.monitor = tf.get_operation_by_name(self.monitor_name)
+        self.monitor = graph.get_operation_by_name(self.monitor_name)
         self.element = self.monitor.outputs[0]
         return tf.train.SessionRunArgs([self.element])
 

@@ -77,7 +77,8 @@ def RNN_model_fn(features, labels, mode, params):
     src_sequences, src_lengths = features
     # tgt_sequences shape: [batch_size, max_sequence_length]
     # tgt_lengths shape: [batch_size]
-    if mode == tf.estimator.ModeKeys.TRAIN:
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
         tgt_sequences, tgt_lengths = labels
     # define model graph
     # encoder part
