@@ -120,8 +120,8 @@ def process_dataset(dataset, batch_size, tgt_eos_id, is_training):
 
     # pipeline
     1. shuffle the dataset.
-    2. batch dataset with batch size and pad zero.
-    3. repeat the dataset forever(useful for training).
+    2. repeat the train dataset forever(useful for training).
+    3. batch dataset with batch size and pad zero.
     4. prefetch data(promote perfermance).
 
     Args:
@@ -135,9 +135,10 @@ def process_dataset(dataset, batch_size, tgt_eos_id, is_training):
     Returns:
         the processed dataset.
     """
+    dataset = dataset.shuffle(30)
+    dataset = dataset.repeat() if is_training else dataset
     dataset = (
-        dataset.shuffle(10)
-               .padded_batch(
+        dataset.padded_batch(
                     batch_size,
                     padded_shapes=(([None], []),
                                    ([None], [])),
@@ -145,7 +146,7 @@ def process_dataset(dataset, batch_size, tgt_eos_id, is_training):
                                     (tgt_eos_id, 0)) # unused second
                )
     )
-    return dataset.repeat() if is_training else dataset
+    return dataset
 
 def preprocessing(config_path = "data/config.json"):
     """Preprocess the given data in params.
