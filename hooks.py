@@ -11,7 +11,7 @@ class EarlyStoppingHook(tf.train.SessionRunHook):
     def __init__(self,
                  monitor_name = "loss",
                  min_delta = 0.01,
-                 patience = 10,
+                 patience = 5,
                  mode = "min"):
         """Initialization.
 
