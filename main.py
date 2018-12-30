@@ -32,7 +32,7 @@ def main():
     run_config = tf.estimator.RunConfig(
         model_dir = "model",
         save_summary_steps = 10,
-        save_checkpoints_steps = 1 
+        save_checkpoints_steps = 1
     )
     # build RNN-Search model
     logging.info("building train estimator.")
@@ -46,7 +46,7 @@ def main():
     logging.info("defining train spec.")
     train_spec = tf.estimator.TrainSpec(
         input_fn = lambda: models.input_fn(True, params),
-        max_steps = 2000
+        max_steps = 3000
     )
     # define EarlyStoppingHook
     logging.info("defining early stopping hook")
