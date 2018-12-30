@@ -32,7 +32,7 @@ def main():
     run_config = tf.estimator.RunConfig(
         model_dir = "model",
         save_summary_steps = 10,
-        save_checkpoints_steps = 1
+        save_checkpoints_steps = 1 
     )
     # build RNN-Search model
     logging.info("building train estimator.")
@@ -55,7 +55,8 @@ def main():
     logging.info("defining eval spec.")
     eval_spec = tf.estimator.EvalSpec(
         input_fn = lambda: models.input_fn(False, params),
-        hooks = [early_stopping_hook]
+        hooks = [early_stopping_hook],
+        throttle_secs = 1
     )
     # train and evaluate RNN-Search model
     logging.info("training and evaluating.")
