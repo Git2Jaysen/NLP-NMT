@@ -37,7 +37,7 @@ def main():
     # build RNN-Search model
     logging.info("building train estimator.")
     train_estimator = tf.estimator.Estimator(
-        model_fn = models.RNN_model_fn,
+        model_fn = models.MultiRNN_model_fn,
         model_dir = "model",
         params = params,
         config = run_config
@@ -46,7 +46,7 @@ def main():
     logging.info("defining train spec.")
     train_spec = tf.estimator.TrainSpec(
         input_fn = lambda: models.input_fn(True, params),
-        max_steps = 3000
+        max_steps = 5
     )
     # define EarlyStoppingHook
     logging.info("defining early stopping hook")
@@ -68,7 +68,7 @@ def main():
     refresh_params(params)
     logging.info("rebuilding test estimator.")
     test_estimator = tf.estimator.Estimator(
-        model_fn = models.RNN_model_fn,
+        model_fn = models.MultiRNN_model_fn,
         model_dir = "model",
         params = params,
         warm_start_from = "model")

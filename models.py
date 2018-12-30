@@ -55,7 +55,178 @@ def input_fn(is_training, params):
     # return dataset
     return dataset
 
-def RNN_model_fn(features, labels, mode, params):
+def MultiRNN_model_fn(features, labels, mode, params):
+    """The model is defined in (Bahdanau et al., 2015)， which was named as
+    RNN-Search. This implementation is referring to "Neural Machine Translation
+    (seq2seq) Tutorial" on Github, with a Bi-LSTM encoder and a LSTM decoder,
+    using attention mechanism.
+
+    Args:
+        features: a tuple, (source sequences, source sequence lengths)
+        labels: a tuple, (target sequences, target sequence lengths)
+        mode: a tf.estimator.ModeKeys instance, denoting TRAIN, EVAL
+               and PREDICT.
+        params: a Dict, using for building computational graph.
+
+    Returns:
+        A tf.estimator.EstimatorSpec instance.
+    """
+    # unzip source and target data
+    # src_sequences shape: [batch_size, max_sequence_length]
+    # src_lengths shape: [batch_size]
+    src_sequences, src_lengths = features
+    # tgt_sequences shape: [batch_size, max_sequence_length]
+    # tgt_lengths shape: [batch_size]
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
+        tgt_sequences, tgt_lengths = labels
+    # define model graph
+    # encoder part
+    embedding_encoder = tf.Variable(
+        tf.truncated_normal([params["src_word_size"],
+                             params["embedding_size"]]),
+        name = "embedding_encoder"
+    )
+    # shape: [batch_size, max_sequence_length, embedding_size]
+    encoder_emb_inp = tf.nn.embedding_lookup(
+        embedding_encoder,
+        src_sequences
+    )
+    encoder_cell = tf.nn.rnn_cell.MultiRNNCell(
+        [tf.nn.rnn_cell.LSTMCell(params["rnn_units"])
+         for _ in range(params["n_encoder_layers"])]
+    )
+    # encoder_outputs shape: [batch_size, nax_sequence_length, rnn_units]
+    # encoder_states shape: [batch_size, rnn_units]
+    encoder_outputs, encoder_state = tf.nn.dynamic_rnn(
+        encoder_cell,
+        encoder_emb_inp,
+        sequence_length = src_lengths,
+        dtype = tf.float32
+    )
+    # decoder part
+    embedding_decoder = tf.Variable(
+        tf.truncated_normal([params["tgt_word_size"],
+                             params["embedding_size"]]),
+        name = "embedding_decoder"
+    )
+    # shape: [batch_size, max_sequence_length, embedding_size]
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
+        decoder_emb_inp = tf.nn.embedding_lookup(
+            embedding_decoder,
+            tgt_sequences
+        )
+    # attention
+    attention_mechanism = tf.contrib.seq2seq.LuongAttention(
+        params["rnn_units"],
+        encoder_outputs,
+        memory_sequence_length = src_lengths
+    )
+    # using for initializing decoder
+    decoder_cell = tf.nn.rnn_cell.MultiRNNCell(
+        [tf.nn.rnn_cell.LSTMCell(params["rnn_units"])
+         for _ in range(params["n_decoder_layers"])]
+    )
+    # wrap decoder cell with attention
+    attended_decoder_cell = tf.contrib.seq2seq.AttentionWrapper(
+        decoder_cell,
+        attention_mechanism,
+        attention_layer_size = params["rnn_units"]
+    )
+    # wrapper encoder_state to an AttentionWrapperState instance
+    decoder_initial_state = attended_decoder_cell.zero_state(
+        params["batch_size"], tf.float32
+    )
+    decoder_initial_state = decoder_initial_state.clone(
+        cell_state = encoder_state
+    )
+    # map the output dim to tgt_word_size(using for softmax)
+    projection_layer = tf.layers.Dense(
+        params["tgt_word_size"],
+        use_bias = False
+    )
+    # different helper when training and testing
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
+        helper = tf.contrib.seq2seq.TrainingHelper(
+            decoder_emb_inp,
+            tgt_lengths
+        )
+    else:
+        helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
+            embedding_decoder,
+            tf.fill([params["batch_size"]], params["tgt_sos_id"]),
+            params["tgt_eos_id"]
+        )
+    # build basic decoder
+    decoder = tf.contrib.seq2seq.BasicDecoder(
+        attended_decoder_cell,
+        helper,
+        decoder_initial_state,
+        output_layer = projection_layer
+    )
+    # different dynamic_decode paramters when training and testing
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
+        decoder_outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder)
+    else:
+        # define maximum decoding length
+        maximum_iterations = tf.round(tf.reduce_max(src_lengths) * 2)
+        decoder_outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(
+            decoder,
+            maximum_iterations = maximum_iterations
+        )
+    # define loss
+    if (mode == tf.estimator.ModeKeys.TRAIN or
+        mode == tf.estimator.ModeKeys.EVAL):
+        logits = decoder_outputs.rnn_output
+        crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels=tgt_sequences, logits=logits
+        )
+        target_weights = tf.sequence_mask(
+            tgt_lengths,
+            tf.reduce_max(tgt_lengths),
+            dtype = tf.float32,
+            name = "mask"
+        )
+        loss = tf.reduce_sum(
+            crossent * target_weights / params["batch_size"],
+            name = "loss"
+        )
+    else:
+        loss = None
+    # define training op
+    if mode == tf.estimator.ModeKeys.TRAIN:
+        variables = tf.trainable_variables()
+        gradients = tf.gradients(loss, variables)
+        clipped_gradients, _ = tf.clip_by_global_norm(
+            gradients,
+            params["max_global_norm"]
+        )
+        optimizer = tf.train.AdamOptimizer()
+        train_op = optimizer.apply_gradients(
+            zip(clipped_gradients, variables),
+            global_step = tf.train.get_global_step()
+        )
+    else:
+        train_op = None
+    # define predictions
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        predictions = decoder_outputs.sample_id
+    else:
+        predictions = None
+    # return EstimatorSpec instance
+    return tf.estimator.EstimatorSpec(
+        mode = mode,
+        predictions = predictions,
+        loss = loss,
+        train_op = train_op
+    )
+
+# ===========================unused below==============================
+
+def BiLSTM_model_fn(features, labels, mode, params):
     """The model is defined in (Bahdanau et al., 2015)， which was named as
     RNN-Search. This implementation is referring to "Neural Machine Translation
     (seq2seq) Tutorial" on Github, with a Bi-LSTM encoder and a LSTM decoder,
