@@ -1,5 +1,5 @@
 # coding: utf-8
-
+import logging
 import numpy as np
 import tensorflow as tf
 
@@ -10,7 +10,7 @@ class EarlyStoppingHook(tf.train.SessionRunHook):
     """
     def __init__(self,
                  monitor_name = "loss",
-                 min_delta = 0.01,
+                 min_delta = 0.001,
                  patience = 5,
                  mode = "min"):
         """Initialization.
@@ -34,18 +34,18 @@ class EarlyStoppingHook(tf.train.SessionRunHook):
             self.min_delta *= -1
         elif mode == "max":
             self.monitor_op = np.greater
+        self.wait = 1
+        self.best = np.Inf if self.monitor_op == np.less else -np.Inf
 
     def begin(self):
         """Called once before using the session.
         """
-        self.wait = 0
-        self.best = np.Inf if self.monitor_op == np.less else -np.Inf
+        graph = tf.get_default_graph()
+        self.monitor = graph.get_operation_by_name(self.monitor_name)
 
     def before_run(self, run_context):
         """Called before each call to run().
         """
-        graph = tf.get_default_graph()
-        self.monitor = graph.get_operation_by_name(self.monitor_name)
         self.element = self.monitor.outputs[0]
         return tf.train.SessionRunArgs([self.element])
 
@@ -55,8 +55,9 @@ class EarlyStoppingHook(tf.train.SessionRunHook):
         current = run_values.results[0]
         if self.monitor_op(current - self.min_delta, self.best):
             self.best = current
-            self.wait = 0
+            self.wait = 1
         else:
             self.wait += 1
-            if self.wait >= self.patience:
+            if self.wait > self.patience:
                 run_context.request_stop()
+                raise ValueError("Early stopping.")

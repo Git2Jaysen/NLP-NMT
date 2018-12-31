@@ -31,7 +31,7 @@ def main():
     # define run config
     run_config = tf.estimator.RunConfig(
         model_dir = "model",
-        save_summary_steps = 10,
+        save_summary_steps = 1,
         save_checkpoints_steps = 1
     )
     # build RNN-Search model
@@ -46,7 +46,7 @@ def main():
     logging.info("defining train spec.")
     train_spec = tf.estimator.TrainSpec(
         input_fn = lambda: models.input_fn(True, params),
-        max_steps = 5
+        max_steps = 1000
     )
     # define EarlyStoppingHook
     logging.info("defining early stopping hook")
@@ -60,9 +60,12 @@ def main():
     )
     # train and evaluate RNN-Search model
     logging.info("training and evaluating.")
-    tf.estimator.train_and_evaluate(
-        train_estimator, train_spec, eval_spec
-    )
+    try:
+        tf.estimator.train_and_evaluate(
+            train_estimator, train_spec, eval_spec
+        )
+    except ValueError as e:
+        logging.info("training stopped.")
     # refresh params and rebuild model
     logging.info("refreshing params.")
     refresh_params(params)
